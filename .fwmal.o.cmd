@@ -1,1 +1,0 @@
-cmd_/home/likaiming/workspace/fwmal/fwmal.o := ld -m elf_x86_64  -z max-page-size=0x200000  -T/home/likaiming/workspace/fwmal/khook/engine.lds  -r -o /home/likaiming/workspace/fwmal/fwmal.o /home/likaiming/workspace/fwmal/main.o 
