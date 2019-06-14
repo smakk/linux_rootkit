@@ -89,10 +89,6 @@ void init_nf(void)
 }
 */
 
-int parse(char* buf){
-
-}
-
 int fwmal_thread(void* data)
 {
 	int ser;
@@ -132,8 +128,6 @@ int fwmal_thread(void* data)
 			if(ret<0) break;
 			printk("[fwmal]:%s\n",recv_buf);
 			if(strcmp(recv_buf,"exit") == 0) break;
-			else
-				ret = parse(recv_buf);
 			ret = kernel_sendmsg(socket, &send_msg, &send_vec, 1, BUFFER_SIZE);
 			if(ret<0) break;
 		}
