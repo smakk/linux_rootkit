@@ -13,7 +13,7 @@ def main():
 			while 1:
 				command = raw_input("$ ")
 				c.sendall(command)
-				if(command == "exit") 
+				if(command == "exit"):
 					s.close()
 					break
 				data = c.recv(1024*1024)

